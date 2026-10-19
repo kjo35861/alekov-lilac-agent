@@ -85,7 +85,54 @@ export function createStudentView() {
       });
       return root;
     },
-    renderDecision() { return '학생 구현 대기: 서버의 판정과 이유를 연결하세요.'; },
+    renderDecision({ status = 'idle', mode, data, error, appId } = {}) {
+      const root = document.createElement('section');
+      const title = document.createElement('h3');
+      title.textContent = '업무 앱 접근 요청 결과';
+      root.appendChild(title);
+
+      function show(label, value) {
+        const row = document.createElement('p');
+        row.textContent = label + ': ' + (value == null || value === '' ? '확인 불가' : String(value));
+        root.appendChild(row);
+      }
+
+      if (mode === 'demo') show('자료 모드', '예제 자료');
+      if (mode === 'disconnected') show('연결 상태', '연결 없음');
+      if (mode === 'unknown') show('연결 상태', '확인 불가');
+
+      if (status === 'idle') {
+        show('요청 상태', '앱을 골라 접속을 요청하세요');
+      } else if (status === 'loading') {
+        show('요청 앱 ID', appId);
+        show('요청 상태', '판정 확인 중');
+      } else if (status === 'error') {
+        show('요청 앱 ID', appId);
+        const message = typeof error?.message === 'string' && error.message ? ': ' + error.message : '';
+        show('요청 상태', '요청 실패' + message);
+        show('판정 안내', '요청 실패는 접근 거부(deny) 판정이 아닙니다. 접근 허용 여부를 확인할 수 없습니다.');
+      } else if (status === 'ok') {
+        show('요청 앱 ID', data?.appId ?? appId);
+        const decisions = {
+          allow: '접근 허용',
+          deny: '접근 거부',
+          challenge: '추가 인증 또는 확인 필요',
+          unknown: '판정 확인 불가',
+        };
+        const raw = data?.decision;
+        const known = Object.prototype.hasOwnProperty.call(decisions, raw);
+        const decision = known ? raw : 'unknown';
+        show('접근 판정', decisions[decision] + ' (' + decision + ')');
+        show('판정 이유', data?.reason);
+        show('판정 시각', data?.checkedAt);
+        if (decision === 'challenge') show('추가 확인 안내', '이 화면은 추가 인증 절차를 대신 수행하지 않습니다.');
+        if (decision === 'unknown') show('접근 안내', '접근 허용 여부를 확인할 수 없습니다.');
+      } else {
+        show('요청 상태', '확인 불가');
+        show('접근 안내', '접근 허용 여부를 확인할 수 없습니다.');
+      }
+      return root;
+    },
     renderEvents() { return '학생 구현 대기: 본인 접속·XDR 기록을 연결하세요.'; },
     renderStatus() { return '학생 구현 대기: 기기·세션·알림과 연결 점검 상태를 구분하세요.'; },
     renderVulnerabilities() { return '학생 구현 대기: 정확한 설치 버전·OSV 출처·조회 시각·부분 결과·조회 실패를 구분하세요.'; },
