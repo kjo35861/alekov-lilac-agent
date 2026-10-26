@@ -580,6 +580,75 @@ export function createStudentView() {
       show('보안 조치', 'AI 설명과 제안만으로 보안 조치는 실행되지 않습니다');
       return root;
     },
-    renderAction() { return '학생 구현 대기: 현재 사건·조치·실제 대상·사람 확인·ACK와 원천 효과·unknown을 구분하세요.'; },
+    renderAction({ status = 'idle', event, actionId, target, receipt, observation, message, confirmationExpiresAt, error } = {}) {
+      const root = document.createElement('section');
+      const heading = document.createElement('h3');
+      heading.textContent = '보안 조치 요청 및 실제 결과';
+      root.appendChild(heading);
+      function show(label, value) {
+        const row = document.createElement('p');
+        row.textContent = label + ': ' + (value == null || value === '' ? '확인 불가' : String(value));
+        root.appendChild(row);
+      }
+      const states = {
+        idle: '아직 미실행',
+        loading: '조치 준비 또는 결과 조회 중 · 완료 아님',
+        prepared: '준비됨·미실행 · 사람의 대상 및 조치 확인 필요',
+        executing: '서버에 전달 중 · 결과가 아직 확인되지 않음',
+        pending: '서버 접수·처리 중 · 접수 응답(ACK)은 효과 확인이 아님',
+        denied: '연동 시스템에서 거절됨',
+        failed: '연동 시스템에서 실패함',
+        unknown: '결과 불명 · 성공이나 효과 없음으로 판단할 수 없음',
+        expired: '확인 기한 지남 · 다시 준비 필요',
+        error: '조치 요청이 처리되지 않음',
+        succeeded: '결과 불명 · 실제 효과를 확인할 수 없음',
+      };
+      const confirmed = status === 'succeeded' && observation?.effectApplied === true;
+      const description = confirmed ? '효과 확인(succeeded)' : (states[status] ?? '결과 불명 · 상태 확인 불가');
+      show('조치 상태', description + ' (' + (status === 'succeeded' && !confirmed ? 'unknown' : status) + ')');
+      if (event?.id != null) {
+        show('현재 사건 ID', event.id);
+        if (Array.isArray(event.evidence)) for (const evidence of event.evidence) {
+          if (evidence?.id != null) show('근거 ID', evidence.id);
+        }
+      }
+      if (actionId != null) show('조치 ID', actionId);
+      if (target?.id != null) show('실제 대상 ID', target.id);
+      if (target?.generation != null) show('대상 세대', target.generation);
+      if (receipt?.requestId != null) show('요청 ID', receipt.requestId);
+      if (receipt?.receiptId != null) show('접수 확인 ID', receipt.receiptId);
+      if (receipt?.version != null) show('서버 결과 버전', receipt.version);
+      if (receipt?.status != null) show('서버 응답 상태', receipt.status);
+      if (receipt?.replayed === true) show('중복 요청 처리', '기존 요청의 응답 재사용(replayed) · 새 효과 확인 아님');
+      if (status === 'prepared') {
+        show('확인 기한', confirmationExpiresAt);
+        show('사람 확인', '제공 화면에서 실제 대상과 조치를 확인해야 하며 아직 집행되지 않았습니다');
+      }
+      if (status === 'executing' || status === 'pending') {
+        show('효과 관측', '아직 확인되지 않았습니다');
+      }
+      if (confirmed) {
+        show('관측 시각', observation.observedAt);
+        show('effectApplied', 'true');
+        show('효과 확인 접수 ID', receipt?.receiptId);
+      } else if (status === 'succeeded' || status === 'unknown') {
+        show('관측 결과', '결과 불명(unknown) · 효과 없음 또는 성공으로 단정하지 마세요');
+        show('재확인', '제공 화면의 「연동 시스템 결과만 재조회」를 직접 사용하세요');
+      }
+      if (status === 'expired') show('다음 단계', '제공 화면에서 조치를 다시 준비하세요');
+      if (status === 'denied' || status === 'failed') show('거절·실패 사유', message ?? error?.message);
+      if (status === 'error') {
+        if (error?.code != null) show('오류 코드', error.code);
+        show('오류 메시지', error?.message);
+      }
+      if (message && !['denied', 'failed', 'error'].includes(status)) show('진행 안내', message);
+      if (status === 'idle' && Array.isArray(event?.supportedActions) && event.supportedActions.length === 0) {
+        show('지원 조치', '연동 시스템이 지원하는 조치가 없어 조치 준비 버튼이 나타나지 않는 것이 정상입니다');
+      }
+      if (event?.id != null) root.setAttribute('data-student-action-event', String(event.id));
+      if (receipt?.requestId != null) root.setAttribute('data-student-action-request', String(receipt.requestId));
+      show('취소 안내', '조치 화면 취소는 이미 서버에 전달된 조치 효과를 되돌리지 않습니다');
+      return root;
+    },
   };
 }
